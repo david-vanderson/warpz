@@ -42,13 +42,15 @@ pub fn main() !void {
   const flip = @intToEnum(c.SDL_RendererFlip, c.SDL_FLIP_NONE);
   var rot: f32 = 50.0;
   var alpha: f32 = 1.0;
+  var red: u8 = 0;
+  const red_incr = 6;
 
   loop: while (true) {
     _ = c.SDL_SetRenderDrawColor(renderer, 96, 128, 255, 255);
     _ = c.SDL_RenderClear(renderer);
 
     _ = c.SDL_SetTextureAlphaMod(texture, @floatToInt(u8, alpha * 255));
-
+    _ = c.SDL_SetTextureColorMod(texture, red, 0, 0);
     _ = c.SDL_RenderCopyEx(renderer, texture, &srcr, &desr, rot, 0, flip);
 
     var event: c.SDL_Event = undefined;
@@ -65,6 +67,14 @@ pub fn main() !void {
             c.SDLK_DOWN => {
               alpha -= 0.1;
               if (alpha < 0.0) alpha = 0.0;
+            },
+            c.SDLK_r => {
+              red = if (red > (255 - red_incr)) 255 else red + red_incr;
+              //std.debug.print("red {d}", .{red});
+            },
+            c.SDLK_t => {
+              red = if (red < red_incr) 0 else red - red_incr;
+              //std.debug.print("red {d}", .{red});
             },
             c.SDLK_ESCAPE => break :loop,
             else => {},
