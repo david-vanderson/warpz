@@ -1,5 +1,6 @@
 
-resizable window
-
 draw text
+- SDL_FontCache?
+- cache text lines?
+- use monospace and do a texture atlas?
 
