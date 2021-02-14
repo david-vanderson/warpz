@@ -1,0 +1,5 @@
+
+resizable window
+
+draw text
+
