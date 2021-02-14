@@ -41,10 +41,13 @@ pub fn main() !void {
   var desr = c.SDL_Rect{.x = 100, .y = 100, .w = srcr.w, .h = srcr.h};
   const flip = @intToEnum(c.SDL_RendererFlip, c.SDL_FLIP_NONE);
   var rot: f32 = 50.0;
+  var alpha: f32 = 1.0;
 
   loop: while (true) {
     _ = c.SDL_SetRenderDrawColor(renderer, 96, 128, 255, 255);
     _ = c.SDL_RenderClear(renderer);
+
+    _ = c.SDL_SetTextureAlphaMod(texture, @floatToInt(u8, alpha * 255));
 
     _ = c.SDL_RenderCopyEx(renderer, texture, &srcr, &desr, rot, 0, flip);
 
@@ -55,6 +58,14 @@ pub fn main() !void {
           switch (event.key.keysym.sym) {
             c.SDLK_LEFT => rot += 1,
             c.SDLK_RIGHT => rot -= 1,
+            c.SDLK_UP => {
+              alpha += 0.1;
+              if (alpha > 1.0) alpha = 1.0;
+            },
+            c.SDLK_DOWN => {
+              alpha -= 0.1;
+              if (alpha < 0.0) alpha = 0.0;
+            },
             c.SDLK_ESCAPE => break :loop,
             else => {},
           }
