@@ -3,6 +3,7 @@ const std = @import("std");
 const c = @cImport({
     @cInclude("SDL2/SDL.h");
     @cInclude("SDL2/SDL_image.h");
+    @cInclude("SDL2/SDL_ttf.h");
 });
 
 const SCREEN_WIDTH = 1280;
@@ -16,6 +17,13 @@ pub fn main() !void {
     std.debug.print("Couldn't initialize SDL: {s}\n", .{c.SDL_GetError()});
     return;
   }
+
+  if (c.TTF_Init() < 0) {
+    std.debug.print("Couldn't initialize SDL_ttf: {s}\n", .{c.SDL_GetError()});
+    return;
+  }
+
+  const font = c.TTF_OpenFont("ttf-bitstream-vera-1.10/VeraMono.ttf", 12);
 
   window = c.SDL_CreateWindow("Shooter 01", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, c.SDL_WINDOW_RESIZABLE)
   orelse {
@@ -40,10 +48,16 @@ pub fn main() !void {
   const srcr = c.SDL_Rect{.x = 0, .y = 0, .w = 166, .h = 166};
   var desr = c.SDL_Rect{.x = 100, .y = 100, .w = srcr.w, .h = srcr.h};
   const flip = @intToEnum(c.SDL_RendererFlip, c.SDL_FLIP_NONE);
-  var rot: f32 = 50.0;
+  var rot: f32 = 0.0;
   var alpha: f32 = 1.0;
   var red: u8 = 0;
   const red_incr = 6;
+
+  const col = c.SDL_Color{.r = 255, .g = 255, .b = 255, .a = 255};
+  const textSurface = c.TTF_RenderUTF8_Blended(font, "Hello World!", col);
+  const textTexture = c.SDL_CreateTextureFromSurface(renderer, textSurface);
+  const tsrcr = c.SDL_Rect{.x = 0, .y = 0, .w = textSurface.*.w, .h = textSurface.*.h};
+  var tdesr = c.SDL_Rect{.x = 20, .y = 20, .w = tsrcr.w, .h = tsrcr.h};
 
   loop: while (true) {
     _ = c.SDL_SetRenderDrawColor(renderer, 96, 128, 255, 255);
@@ -53,13 +67,21 @@ pub fn main() !void {
     _ = c.SDL_SetTextureColorMod(texture, red, 0, 0);
     _ = c.SDL_RenderCopyEx(renderer, texture, &srcr, &desr, rot, 0, flip);
 
+    _ = c.SDL_SetTextureAlphaMod(textTexture, @floatToInt(u8, alpha * 255));
+    _ = c.SDL_SetTextureColorMod(textTexture, red, 0, 0);
+    _ = c.SDL_RenderCopyEx(renderer, textTexture, &tsrcr, &tdesr, rot, 0, flip);
+
     var event: c.SDL_Event = undefined;
     while (c.SDL_PollEvent(&event) != 0) {
       switch (event.type) {
         c.SDL_KEYDOWN => {
           switch (event.key.keysym.sym) {
-            c.SDLK_LEFT => rot += 1,
-            c.SDLK_RIGHT => rot -= 1,
+            c.SDLK_LEFT => {
+              rot += 1;
+            },
+            c.SDLK_RIGHT => {
+              rot -= 1;
+            },
             c.SDLK_UP => {
               alpha += 0.1;
               if (alpha > 1.0) alpha = 1.0;

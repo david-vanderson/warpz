@@ -17,6 +17,7 @@ pub fn build(b: *Builder) void {
     exe.addLibPath("/usr/local/lib");
     exe.linkSystemLibrary("SDL2");
     exe.linkSystemLibrary("SDL2_image");
+    exe.linkSystemLibrary("SDL2_ttf");
 
     exe.setTarget(target);
     exe.setBuildMode(mode);
