@@ -7,7 +7,8 @@ const c = @cImport({
 });
 
 const SCREEN_WIDTH = 1280;
-const SCREEN_HEIGHT = 720;
+const SCREEN_HEIGHT = 520;
+const TICK = 33;
  
 var renderer: *c.SDL_Renderer = undefined;
 var window: *c.SDL_Window = undefined;
@@ -59,7 +60,16 @@ pub fn main() !void {
   const tsrcr = c.SDL_Rect{.x = 0, .y = 0, .w = textSurface.*.w, .h = textSurface.*.h};
   var tdesr = c.SDL_Rect{.x = 20, .y = 20, .w = tsrcr.w, .h = tsrcr.h};
 
-  loop: while (true) {
+  var frame_times = [_]i64{0} ** 10;
+
+  var start_loop_millis: i64 = 0;
+
+  gameloop: while (true) {
+
+    if (start_loop_millis == 0) {
+      start_loop_millis = std.time.milliTimestamp();
+    }
+    
     _ = c.SDL_SetRenderDrawColor(renderer, 96, 128, 255, 255);
     _ = c.SDL_RenderClear(renderer);
 
@@ -98,13 +108,13 @@ pub fn main() !void {
               red = if (red < red_incr) 0 else red - red_incr;
               //std.debug.print("red {d}", .{red});
             },
-            c.SDLK_ESCAPE => break :loop,
+            c.SDLK_ESCAPE => break :gameloop,
             else => {},
           }
         },
         c.SDL_QUIT => {
           //std.debug.print("SDL_QUIT\n", .{});
-          break :loop;
+          break :gameloop;
         },
         else => {
           //std.debug.print("other event\n", .{});
@@ -113,7 +123,32 @@ pub fn main() !void {
       }
     }
     c.SDL_RenderPresent(renderer);
-    c.SDL_Delay(16);
+
+    const millis = std.time.milliTimestamp();
+    const loop_millis = millis - start_loop_millis;
+    std.debug.print("loop_millis {d}\n", .{loop_millis});
+    const extra_millis = TICK - loop_millis;
+    const sleep_millis = std.math.max(0, extra_millis);
+    const total = loop_millis + sleep_millis;
+    start_loop_millis += total;
+
+    for (frame_times) |_, i| {
+      if (i == (frame_times.len - 1)) {
+        frame_times[i] = millis;
+      } else {
+        frame_times[i] = frame_times[i+1];
+      }
+
+      //std.debug.print("frame_times[{d}] = {d}\n", .{i, frame_times[i]});
+    }
+
+    if (frame_times[0] > 0) {
+      const diff = frame_times[frame_times.len - 1] - frame_times[0];
+      const fps = @intToFloat(f32, diff) / @intToFloat(f32, frame_times.len - 1);
+      std.debug.print("fps {d}\n", .{fps});
+    }
+
+    c.SDL_Delay(@intCast(u32, sleep_millis));
   }
 
   c.SDL_DestroyRenderer(renderer);
