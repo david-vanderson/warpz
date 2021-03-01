@@ -1,12 +1,6 @@
 
-draw text
-- SDL_FontCache?
-- cache text lines?
-- use monospace and do a texture atlas?
-
 do special sdl stuff to enable retina resolution?
 - look at remarks in docs for SDL_CreateWindow
-
 
 replace sdl_ttf usage with a premade font texture atlas
 replace sdl_image usage with premade textures
