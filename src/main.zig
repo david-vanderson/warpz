@@ -12,6 +12,19 @@ const TICK = 33;
  
 var renderer: *c.SDL_Renderer = undefined;
 var window: *c.SDL_Window = undefined;
+var font: ?*c.TTF_Font = undefined;
+
+fn renderText(text: [:0]u8, left: i32, top: i32) void {
+  const color = c.SDL_Color{.r = 255, .g = 255, .b = 255, .a = 255};
+  const textSurface = c.TTF_RenderUTF8_Blended(font, text, color);
+  const textTexture = c.SDL_CreateTextureFromSurface(renderer, textSurface);
+  const tsrcr = c.SDL_Rect{.x = 0, .y = 0, .w = textSurface.*.w, .h = textSurface.*.h};
+  const tdesr = c.SDL_Rect{.x = left, .y = top, .w = tsrcr.w, .h = tsrcr.h};
+  //_ = c.SDL_SetTextureAlphaMod(textTexture, @floatToInt(u8, alpha * 255));
+  //_ = c.SDL_SetTextureColorMod(textTexture, red, 0, 0);
+  const flip = @intToEnum(c.SDL_RendererFlip, c.SDL_FLIP_NONE);
+  _ = c.SDL_RenderCopyEx(renderer, textTexture, &tsrcr, &tdesr, 0, 0, flip);
+}
 
 pub fn main() !void {
   if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
@@ -24,7 +37,7 @@ pub fn main() !void {
     return;
   }
 
-  const font = c.TTF_OpenFont("ttf-bitstream-vera-1.10/VeraMono.ttf", 12);
+  font = c.TTF_OpenFont("ttf-bitstream-vera-1.10/VeraMono.ttf", 12);
 
   window = c.SDL_CreateWindow("Shooter 01", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, c.SDL_WINDOW_RESIZABLE)
   orelse {
@@ -122,15 +135,28 @@ pub fn main() !void {
         }
       }
     }
+
+    if (frame_times[0] > 0) {
+      const diff = frame_times[frame_times.len - 1] - frame_times[0];
+      const avg = @intToFloat(f32, diff) / @intToFloat(f32, frame_times.len - 1);
+      const fps = 1000.0 / avg;
+      const fps_int = @floatToInt(i32, fps);
+      //std.debug.print("n {d} diff {d} avg {d} fps {d}\n", .{frame_times.len, diff, avg, fps});
+      var buf = std.mem.zeroes([100:0]u8);
+      var fbs = std.io.fixedBufferStream(&buf);
+      try fbs.writer().print("fps {d}", .{fps_int});
+      renderText(buf[0..:0], SCREEN_WIDTH - 100, 0);
+    }
+
     c.SDL_RenderPresent(renderer);
 
     const millis = std.time.milliTimestamp();
     const loop_millis = millis - start_loop_millis;
-    std.debug.print("loop_millis {d}\n", .{loop_millis});
     const extra_millis = TICK - loop_millis;
-    const sleep_millis = std.math.max(0, extra_millis);
+    const sleep_millis = std.math.max(1, extra_millis);
     const total = loop_millis + sleep_millis;
     start_loop_millis += total;
+    //std.debug.print("start {d} + loop_millis {d} and total {d}\n", .{start_loop_millis, loop_millis, total});
 
     for (frame_times) |_, i| {
       if (i == (frame_times.len - 1)) {
@@ -140,12 +166,6 @@ pub fn main() !void {
       }
 
       //std.debug.print("frame_times[{d}] = {d}\n", .{i, frame_times[i]});
-    }
-
-    if (frame_times[0] > 0) {
-      const diff = frame_times[frame_times.len - 1] - frame_times[0];
-      const fps = @intToFloat(f32, diff) / @intToFloat(f32, frame_times.len - 1);
-      std.debug.print("fps {d}\n", .{fps});
     }
 
     c.SDL_Delay(@intCast(u32, sleep_millis));
