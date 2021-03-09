@@ -9,6 +9,61 @@ const c = @cImport({
 const SCREEN_WIDTH = 1280;
 const SCREEN_HEIGHT = 520;
 const TICK = 33;
+
+var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
+const gpa = &gpa_instance.allocator;
+
+
+const Ship = struct {
+};
+
+const Player = struct {
+};
+
+const Entity = union(enum) {
+  ship: Ship,
+  player: Player,
+};
+
+const Posvel = struct {
+  x: f64,
+  y: f64,
+  r: f64,
+  dx: f64,
+  dy: f64,
+  dr: f64,
+};
+
+var next_id: u64 = 1;
+fn nextId() u64 {
+  defer next_id += 1;
+  return next_id;
+}
+
+const Object = struct {
+  // unique id for each game object
+  id: u64,
+  // millis since scenario start for age-related stuff (animations, fading, dying)
+  start_time: i64,
+  // usually true but set to false when an Object needs to be removed
+  alive: bool,
+  // position and velocity info 
+  posvel: Posvel,
+  entity: Entity,
+};
+
+const Scenario = struct {
+  // unique id to disambiguate when we switch scenarios
+  id: u64,
+  // millis since scenario start
+  time: i64,
+  width: f64,
+  height: f64,
+  objects: std.ArrayList(Object),
+};
+
+// 0 before we are assigned an id by the server
+var meid: u64 = 0;
  
 var renderer: *c.SDL_Renderer = undefined;
 var window: *c.SDL_Window = undefined;
@@ -72,6 +127,34 @@ pub fn main() !void {
   const textTexture = c.SDL_CreateTextureFromSurface(renderer, textSurface);
   const tsrcr = c.SDL_Rect{.x = 0, .y = 0, .w = textSurface.*.w, .h = textSurface.*.h};
   var tdesr = c.SDL_Rect{.x = 20, .y = 20, .w = tsrcr.w, .h = tsrcr.h};
+
+  
+  var scenario = Scenario {
+    .id = nextId(),
+    .time = 0,
+    .width = 200.0,
+    .height = 100.0,
+    .objects = std.ArrayList(Object).init(gpa),
+  };
+
+  var a = Object {
+    .id = nextId(),
+    .start_time = scenario.time,
+    .alive = true,
+    .posvel = Posvel{
+      .x = 1.0,
+      .y = 1.0,
+      .r = 1.0,
+      .dx = 5.0,
+      .dy = 5.0,
+      .dr = 0.1,
+      },
+    .entity = Entity{
+      .ship = Ship{
+      },
+    },
+  };
+  try scenario.objects.append(a);
 
   var frame_times = [_]i64{0} ** 10;
 
