@@ -18,6 +18,7 @@ const Ship = struct {
 };
 
 const Player = struct {
+  on_ship: u64,
 };
 
 const Entity = union(enum) {
@@ -81,6 +82,19 @@ fn renderText(text: [:0]u8, left: i32, top: i32) void {
   _ = c.SDL_RenderCopyEx(renderer, textTexture, &tsrcr, &tdesr, 0, 0, flip);
 }
 
+const FLIP_NONE = @intToEnum(c.SDL_RendererFlip, c.SDL_FLIP_NONE);
+
+fn drawShip(ship: *Object, texture: *c.SDL_Texture, alpha: f32, red: u8, rot: f32) void {
+  const srcr = c.SDL_Rect{.x = 0, .y = 0, .w = 166, .h = 166};
+  const desr = c.SDL_Rect{
+    .x = @floatToInt(c_int, ship.posvel.x),
+    .y = @floatToInt(c_int, ship.posvel.y),
+    .w = srcr.w, .h = srcr.h};
+  _ = c.SDL_SetTextureAlphaMod(texture, @floatToInt(u8, alpha * 255));
+  _ = c.SDL_SetTextureColorMod(texture, red, 0, 0);
+  _ = c.SDL_RenderCopyEx(renderer, texture, &srcr, &desr, rot, 0, FLIP_NONE);
+}
+
 pub fn main() !void {
   if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
     std.debug.print("Couldn't initialize SDL: {s}\n", .{c.SDL_GetError()});
@@ -122,13 +136,6 @@ pub fn main() !void {
   var red: u8 = 0;
   const red_incr = 6;
 
-  const col = c.SDL_Color{.r = 255, .g = 255, .b = 255, .a = 255};
-  const textSurface = c.TTF_RenderUTF8_Blended(font, "Hello World!", col);
-  const textTexture = c.SDL_CreateTextureFromSurface(renderer, textSurface);
-  const tsrcr = c.SDL_Rect{.x = 0, .y = 0, .w = textSurface.*.w, .h = textSurface.*.h};
-  var tdesr = c.SDL_Rect{.x = 20, .y = 20, .w = tsrcr.w, .h = tsrcr.h};
-
-  
   var scenario = Scenario {
     .id = nextId(),
     .time = 0,
@@ -156,6 +163,46 @@ pub fn main() !void {
   };
   try scenario.objects.append(a);
 
+  var p = Object {
+    .id = nextId(),
+    .start_time = scenario.time,
+    .alive = true,
+    .posvel = Posvel{
+      .x = 0.0,
+      .y = 0.0,
+      .r = 0.0,
+      .dx = 0.0,
+      .dy = 0.0,
+      .dr = 0.0,
+      },
+    .entity = Entity{
+      .player = Player{
+        .on_ship = 0,
+      },
+    },
+  };
+  try scenario.objects.append(p);
+
+  var meId: u64 = 0;
+  var meObj: *Object = undefined;
+
+  for (scenario.objects.items) |*o| {
+    if (o.entity == .player) {
+      meObj = o;
+      meId = meObj.id;
+      break;
+    }
+  }
+
+  for (scenario.objects.items) |*o| {
+    if (o.entity == .ship) {
+      meObj.entity.player.on_ship = o.id;
+      break;
+    }
+  }
+
+  std.debug.print("meId = {d} on_ship = {d}\n", .{meId, meObj.entity.player.on_ship});
+
   var frame_times = [_]i64{0} ** 10;
 
   var start_loop_millis: i64 = 0;
@@ -172,10 +219,6 @@ pub fn main() !void {
     _ = c.SDL_SetTextureAlphaMod(texture, @floatToInt(u8, alpha * 255));
     _ = c.SDL_SetTextureColorMod(texture, red, 0, 0);
     _ = c.SDL_RenderCopyEx(renderer, texture, &srcr, &desr, rot, 0, flip);
-
-    _ = c.SDL_SetTextureAlphaMod(textTexture, @floatToInt(u8, alpha * 255));
-    _ = c.SDL_SetTextureColorMod(textTexture, red, 0, 0);
-    _ = c.SDL_RenderCopyEx(renderer, textTexture, &tsrcr, &tdesr, rot, 0, flip);
 
     var event: c.SDL_Event = undefined;
     while (c.SDL_PollEvent(&event) != 0) {
@@ -216,6 +259,15 @@ pub fn main() !void {
           //std.debug.print("other event\n", .{});
           break;
         }
+      }
+    }
+
+    for (scenario.objects.items) |*o| {
+      switch (o.entity) {
+        .player => {},
+        .ship => {
+          drawShip(o, texture, alpha, red, rot);
+        },
       }
     }
 
