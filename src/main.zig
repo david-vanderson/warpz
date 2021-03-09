@@ -54,6 +54,7 @@ const Object = struct {
 };
 
 const Scenario = struct {
+  const Self = @This();
   // unique id to disambiguate when we switch scenarios
   id: u64,
   // millis since scenario start
@@ -61,6 +62,16 @@ const Scenario = struct {
   width: f64,
   height: f64,
   objects: std.ArrayList(Object),
+
+  pub fn findId(self: *Self, id: u64) !*Object {
+    for (self.objects.items) |*o| {
+      if (o.id == id) {
+        return o;
+      } 
+    }
+
+    return error.notFound;
+  }
 };
 
 // 0 before we are assigned an id by the server
@@ -84,7 +95,7 @@ fn renderText(text: [:0]u8, left: i32, top: i32) void {
 
 const FLIP_NONE = @intToEnum(c.SDL_RendererFlip, c.SDL_FLIP_NONE);
 
-fn drawShip(ship: *Object, texture: *c.SDL_Texture, alpha: f32, red: u8, rot: f32) void {
+fn drawShip(ship: *Object, texture: *c.SDL_Texture, alpha: f32, red: u8) void {
   const srcr = c.SDL_Rect{.x = 0, .y = 0, .w = 166, .h = 166};
   const desr = c.SDL_Rect{
     .x = @floatToInt(c_int, ship.posvel.x),
@@ -92,7 +103,7 @@ fn drawShip(ship: *Object, texture: *c.SDL_Texture, alpha: f32, red: u8, rot: f3
     .w = srcr.w, .h = srcr.h};
   _ = c.SDL_SetTextureAlphaMod(texture, @floatToInt(u8, alpha * 255));
   _ = c.SDL_SetTextureColorMod(texture, red, 0, 0);
-  _ = c.SDL_RenderCopyEx(renderer, texture, &srcr, &desr, rot, 0, FLIP_NONE);
+  _ = c.SDL_RenderCopyEx(renderer, texture, &srcr, &desr, ship.posvel.r, 0, FLIP_NONE);
 }
 
 pub fn main() !void {
@@ -131,7 +142,6 @@ pub fn main() !void {
   const srcr = c.SDL_Rect{.x = 0, .y = 0, .w = 166, .h = 166};
   var desr = c.SDL_Rect{.x = 100, .y = 100, .w = srcr.w, .h = srcr.h};
   const flip = @intToEnum(c.SDL_RendererFlip, c.SDL_FLIP_NONE);
-  var rot: f32 = 0.0;
   var alpha: f32 = 1.0;
   var red: u8 = 0;
   const red_incr = 6;
@@ -212,13 +222,12 @@ pub fn main() !void {
     if (start_loop_millis == 0) {
       start_loop_millis = std.time.milliTimestamp();
     }
+
+    meObj = try scenario.findId(meId);
+    const meShip = try scenario.findId(meObj.entity.player.on_ship);
     
     _ = c.SDL_SetRenderDrawColor(renderer, 96, 128, 255, 255);
     _ = c.SDL_RenderClear(renderer);
-
-    _ = c.SDL_SetTextureAlphaMod(texture, @floatToInt(u8, alpha * 255));
-    _ = c.SDL_SetTextureColorMod(texture, red, 0, 0);
-    _ = c.SDL_RenderCopyEx(renderer, texture, &srcr, &desr, rot, 0, flip);
 
     var event: c.SDL_Event = undefined;
     while (c.SDL_PollEvent(&event) != 0) {
@@ -226,10 +235,10 @@ pub fn main() !void {
         c.SDL_KEYDOWN => {
           switch (event.key.keysym.sym) {
             c.SDLK_LEFT => {
-              rot += 1;
+              meShip.posvel.r += 1;
             },
             c.SDLK_RIGHT => {
-              rot -= 1;
+              meShip.posvel.r -= 1;
             },
             c.SDLK_UP => {
               alpha += 0.1;
@@ -266,7 +275,7 @@ pub fn main() !void {
       switch (o.entity) {
         .player => {},
         .ship => {
-          drawShip(o, texture, alpha, red, rot);
+          drawShip(o, texture, alpha, red);
         },
       }
     }
