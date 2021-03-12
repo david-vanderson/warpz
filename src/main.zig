@@ -9,6 +9,17 @@ const c = @cImport({
 const SCREEN_WIDTH = 1280;
 const SCREEN_HEIGHT = 520;
 const TICK = 33;
+const PI = std.math.pi;
+const PI2 = std.math.tau;
+
+
+fn angleNorm(a: f64) f64 {
+  var b: f64 = a;
+  while (b >= PI) { b -= PI2; }
+  while (b < 0) { b += PI2; }
+  return b;
+}
+
 
 var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = &gpa_instance.allocator;
@@ -42,6 +53,7 @@ fn nextId() u64 {
 }
 
 const Object = struct {
+  const Self = @This();
   // unique id for each game object
   id: u64,
   // millis since scenario start for age-related stuff (animations, fading, dying)
@@ -51,7 +63,24 @@ const Object = struct {
   // position and velocity info 
   posvel: Posvel,
   entity: Entity,
+
+  pub fn physics(self: *Self, dt: f64) void {
+    self.posvel.x += dt * self.posvel.dx;
+    self.posvel.y += dt * self.posvel.dy;
+    self.posvel.r = angleNorm(self.posvel.r + dt * self.posvel.dr);
+    //FIXME: drag
+  }
+
+  pub fn updatePhysics(self: *Self, dt: f64) void {
+    switch (self.entity) {
+      .player => {},
+      .ship => {
+        self.physics(dt);
+      },
+    }
+  }
 };
+
 
 const Scenario = struct {
   const Self = @This();
@@ -72,6 +101,14 @@ const Scenario = struct {
 
     return error.notFound;
   }
+
+  pub fn tick(self: *Self) void {
+    self.time += TICK;
+    for (self.objects.items) |*o| {
+      o.updatePhysics(TICK / 1000.0);
+    }
+  }
+
 };
 
 // 0 before we are assigned an id by the server
@@ -100,10 +137,12 @@ fn drawShip(ship: *Object, texture: *c.SDL_Texture, alpha: f32, red: u8) void {
   const desr = c.SDL_Rect{
     .x = @floatToInt(c_int, ship.posvel.x),
     .y = @floatToInt(c_int, ship.posvel.y),
-    .w = srcr.w, .h = srcr.h};
+    .w = srcr.w,
+    .h = srcr.h
+  };
   _ = c.SDL_SetTextureAlphaMod(texture, @floatToInt(u8, alpha * 255));
   _ = c.SDL_SetTextureColorMod(texture, red, 0, 0);
-  _ = c.SDL_RenderCopyEx(renderer, texture, &srcr, &desr, ship.posvel.r, 0, FLIP_NONE);
+  _ = c.SDL_RenderCopyEx(renderer, texture, &srcr, &desr, ship.posvel.r * 180.0 / PI, 0, FLIP_NONE);
 }
 
 pub fn main() !void {
@@ -162,8 +201,8 @@ pub fn main() !void {
       .x = 1.0,
       .y = 1.0,
       .r = 1.0,
-      .dx = 5.0,
-      .dy = 5.0,
+      .dx = 1.0,
+      .dy = 1.0,
       .dr = 0.1,
       },
     .entity = Entity{
@@ -222,6 +261,8 @@ pub fn main() !void {
     if (start_loop_millis == 0) {
       start_loop_millis = std.time.milliTimestamp();
     }
+
+    scenario.tick();
 
     meObj = try scenario.findId(meId);
     const meShip = try scenario.findId(meObj.entity.player.on_ship);
