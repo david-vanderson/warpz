@@ -123,7 +123,7 @@ fn renderText(text: [:0]u8, left: i32, top: i32) void {
   const textSurface = c.TTF_RenderUTF8_Blended(font, text, color);
   const textTexture = c.SDL_CreateTextureFromSurface(renderer, textSurface);
   const tsrcr = c.SDL_Rect{.x = 0, .y = 0, .w = textSurface.*.w, .h = textSurface.*.h};
-  const tdesr = c.SDL_Rect{.x = left, .y = top, .w = tsrcr.w, .h = tsrcr.h};
+  const tdesr = c.SDL_Rect{.x = left, .y = top, .w = 2 * tsrcr.w, .h = 2 * tsrcr.h};
   //_ = c.SDL_SetTextureAlphaMod(textTexture, @floatToInt(u8, alpha * 255));
   //_ = c.SDL_SetTextureColorMod(textTexture, red, 0, 0);
   const flip = @intToEnum(c.SDL_RendererFlip, c.SDL_FLIP_NONE);
@@ -137,8 +137,8 @@ fn drawShip(ship: *Object, texture: *c.SDL_Texture, alpha: f32, red: u8) void {
   const desr = c.SDL_Rect{
     .x = @floatToInt(c_int, ship.posvel.x),
     .y = @floatToInt(c_int, ship.posvel.y),
-    .w = srcr.w,
-    .h = srcr.h
+    .w = 2 * srcr.w,
+    .h = 2 * srcr.h
   };
   _ = c.SDL_SetTextureAlphaMod(texture, @floatToInt(u8, alpha * 255));
   _ = c.SDL_SetTextureColorMod(texture, red, 0, 0);
@@ -172,6 +172,9 @@ pub fn main() !void {
     return;
   };
 
+  _ = c.SDL_RenderSetLogicalSize(renderer, 2 * SCREEN_WIDTH, 2 * SCREEN_HEIGHT);
+
+
   const texture: *c.SDL_Texture = c.IMG_LoadTexture(renderer, "images/asteroid.png")
     orelse {
     std.debug.print("Failed to create texture: {s}\n", .{c.SDL_GetError()});
@@ -203,7 +206,7 @@ pub fn main() !void {
       .r = 1.0,
       .dx = 1.0,
       .dy = 1.0,
-      .dr = 0.1,
+      .dr = 0.0,
       },
     .entity = Entity{
       .ship = Ship{
@@ -273,6 +276,15 @@ pub fn main() !void {
     var event: c.SDL_Event = undefined;
     while (c.SDL_PollEvent(&event) != 0) {
       switch (event.type) {
+        c.SDL_WINDOWEVENT => {
+          switch (event.window.event) {
+            c.SDL_WINDOWEVENT_RESIZED => {
+              std.debug.print("window resized {d},{d}\n", .{event.window.data1, event.window.data2});
+              _ = c.SDL_RenderSetLogicalSize(renderer, 2 * event.window.data1, 2 * event.window.data2);
+            },
+            else => {},
+          }
+        },
         c.SDL_KEYDOWN => {
           switch (event.key.keysym.sym) {
             c.SDLK_LEFT => {

@@ -1,4 +1,6 @@
 
+render ship at real location
+
 do special sdl stuff to enable retina resolution?
 - look at remarks in docs for SDL_CreateWindow
 
