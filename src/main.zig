@@ -39,9 +39,13 @@ const Entity = union(enum) {
   player: Player,
 };
 
-const Posvel = struct {
+const Point = struct {
   x: f64,
   y: f64,
+};
+
+const Posvel = struct {
+  p: Point,
   r: f64,
   dx: f64,
   dy: f64,
@@ -67,8 +71,8 @@ const Object = struct {
   entity: Entity,
 
   pub fn physics(self: *Self, dt: f64) void {
-    self.posvel.x += dt * self.posvel.dx;
-    self.posvel.y += dt * self.posvel.dy;
+    self.posvel.p.x += dt * self.posvel.dx;
+    self.posvel.p.y += dt * self.posvel.dy;
     self.posvel.r = angleNorm(self.posvel.r + dt * self.posvel.dr);
     //FIXME: drag
   }
@@ -113,9 +117,28 @@ const Scenario = struct {
 
 };
 
-// 0 before we are assigned an id by the server
-var meid: u64 = 0;
- 
+
+fn space2Screen(center: Point, zoom: f64, p: Point) Point {
+  return Point {
+    .x = zoom * (p.x - center.x),
+    .y = zoom * (center.y - p.y),
+  };
+}
+
+const Client = struct {
+  const Self = @This();
+  // 0 before we are assigned an id by the server
+  meid: u64,
+  center: Point,
+  zoom: f64,
+};
+
+var client: Client = .{
+  .meid = 0,
+  .center = .{.x = 0, .y = 0},
+  .zoom = 1.0,
+};
+
 var renderer: *c.SDL_Renderer = undefined;
 var window: *c.SDL_Window = undefined;
 var font: ?*c.TTF_Font = undefined;
@@ -134,13 +157,14 @@ fn renderText(text: [:0]u8, left: i32, top: i32) void {
 
 const FLIP_NONE = @intToEnum(c.SDL_RendererFlip, c.SDL_FLIP_NONE);
 
-fn drawShip(ship: *Object, texture: *c.SDL_Texture, alpha: f32, red: u8) void {
+fn drawShip(ship: *Object, texture: *c.SDL_Texture, alpha: f32, red: u8, center: Point, zoom: f64) void {
   const srcr = c.SDL_Rect{.x = 0, .y = 0, .w = 166, .h = 166};
+  const screenPt = space2Screen(center, zoom, ship.posvel.p);
   const desr = c.SDL_Rect{
-    .x = @floatToInt(c_int, ship.posvel.x),
-    .y = @floatToInt(c_int, ship.posvel.y),
-    .w = 2 * srcr.w,
-    .h = 2 * srcr.h
+    .x = @floatToInt(c_int, screenPt.x) + @divFloor(RENDER_SCALE * screen_width, 2),
+    .y = @floatToInt(c_int, screenPt.y) + @divFloor(RENDER_SCALE * screen_height, 2),
+    .w = RENDER_SCALE * srcr.w,
+    .h = RENDER_SCALE * srcr.h
   };
   _ = c.SDL_SetTextureAlphaMod(texture, @floatToInt(u8, alpha * 255));
   _ = c.SDL_SetTextureColorMod(texture, red, 0, 0);
@@ -160,7 +184,7 @@ pub fn main() !void {
 
   font = c.TTF_OpenFont("ttf-bitstream-vera-1.10/VeraMono.ttf", 12);
 
-  window = c.SDL_CreateWindow("Shooter 01", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, screen_width, screen_height, c.SDL_WINDOW_RESIZABLE)
+  window = c.SDL_CreateWindow("Warpz", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, screen_width, screen_height, c.SDL_WINDOW_RESIZABLE)
   orelse {
     std.debug.print("Failed to open {d} x {d} window: {s}\n", .{screen_width, screen_height, c.SDL_GetError()});
     return;
@@ -203,8 +227,10 @@ pub fn main() !void {
     .start_time = scenario.time,
     .alive = true,
     .posvel = Posvel{
-      .x = 1.0,
-      .y = 1.0,
+      .p = Point {
+        .x = 10.0,
+        .y = 10.0,
+      },
       .r = 1.0,
       .dx = 1.0,
       .dy = 1.0,
@@ -222,8 +248,10 @@ pub fn main() !void {
     .start_time = scenario.time,
     .alive = true,
     .posvel = Posvel{
-      .x = 0.0,
-      .y = 0.0,
+      .p = Point {
+        .x = 0.0,
+        .y = 0.0,
+      },
       .r = 0.0,
       .dx = 0.0,
       .dy = 0.0,
@@ -237,13 +265,12 @@ pub fn main() !void {
   };
   try scenario.objects.append(p);
 
-  var meId: u64 = 0;
   var meObj: *Object = undefined;
 
   for (scenario.objects.items) |*o| {
     if (o.entity == .player) {
       meObj = o;
-      meId = meObj.id;
+      client.meid = meObj.id;
       break;
     }
   }
@@ -255,7 +282,7 @@ pub fn main() !void {
     }
   }
 
-  std.debug.print("meId = {d} on_ship = {d}\n", .{meId, meObj.entity.player.on_ship});
+  std.debug.print("meid = {d} on_ship = {d}\n", .{client.meid, meObj.entity.player.on_ship});
 
   var frame_times = [_]i64{0} ** 10;
 
@@ -269,7 +296,7 @@ pub fn main() !void {
 
     scenario.tick();
 
-    meObj = try scenario.findId(meId);
+    meObj = try scenario.findId(client.meid);
     const meShip = try scenario.findId(meObj.entity.player.on_ship);
     
     _ = c.SDL_SetRenderDrawColor(renderer, 96, 128, 255, 255);
@@ -292,10 +319,10 @@ pub fn main() !void {
         c.SDL_KEYDOWN => {
           switch (event.key.keysym.sym) {
             c.SDLK_LEFT => {
-              meShip.posvel.r += 1;
+              meShip.posvel.r += 0.1;
             },
             c.SDLK_RIGHT => {
-              meShip.posvel.r -= 1;
+              meShip.posvel.r -= 0.1;
             },
             c.SDLK_UP => {
               alpha += 0.1;
@@ -332,7 +359,7 @@ pub fn main() !void {
       switch (o.entity) {
         .player => {},
         .ship => {
-          drawShip(o, texture, alpha, red);
+          drawShip(o, texture, alpha, red, client.center, client.zoom);
         },
       }
     }
