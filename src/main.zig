@@ -6,8 +6,10 @@ const c = @cImport({
     @cInclude("SDL2/SDL_ttf.h");
 });
 
-const SCREEN_WIDTH = 1280;
-const SCREEN_HEIGHT = 520;
+var screen_width: i32 = 1280;
+var screen_height: i32 = 520;
+// render at this multiple and downscale because sprite positions are integer pixels
+const RENDER_SCALE = 2;
 const TICK = 33;
 const PI = std.math.pi;
 const PI2 = std.math.tau;
@@ -158,9 +160,9 @@ pub fn main() !void {
 
   font = c.TTF_OpenFont("ttf-bitstream-vera-1.10/VeraMono.ttf", 12);
 
-  window = c.SDL_CreateWindow("Shooter 01", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, c.SDL_WINDOW_RESIZABLE)
+  window = c.SDL_CreateWindow("Shooter 01", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, screen_width, screen_height, c.SDL_WINDOW_RESIZABLE)
   orelse {
-    std.debug.print("Failed to open {d} x {d} window: {s}\n", .{SCREEN_WIDTH, SCREEN_HEIGHT, c.SDL_GetError()});
+    std.debug.print("Failed to open {d} x {d} window: {s}\n", .{screen_width, screen_height, c.SDL_GetError()});
     return;
   };
     
@@ -172,7 +174,7 @@ pub fn main() !void {
     return;
   };
 
-  _ = c.SDL_RenderSetLogicalSize(renderer, 2 * SCREEN_WIDTH, 2 * SCREEN_HEIGHT);
+  _ = c.SDL_RenderSetLogicalSize(renderer, RENDER_SCALE * screen_width, RENDER_SCALE * screen_height);
 
 
   const texture: *c.SDL_Texture = c.IMG_LoadTexture(renderer, "images/asteroid.png")
@@ -280,7 +282,9 @@ pub fn main() !void {
           switch (event.window.event) {
             c.SDL_WINDOWEVENT_RESIZED => {
               std.debug.print("window resized {d},{d}\n", .{event.window.data1, event.window.data2});
-              _ = c.SDL_RenderSetLogicalSize(renderer, 2 * event.window.data1, 2 * event.window.data2);
+              screen_width = event.window.data1;
+              screen_height = event.window.data2;
+              _ = c.SDL_RenderSetLogicalSize(renderer, RENDER_SCALE * screen_width, RENDER_SCALE * screen_height);
             },
             else => {},
           }
@@ -342,7 +346,7 @@ pub fn main() !void {
       var buf = std.mem.zeroes([100:0]u8);
       var fbs = std.io.fixedBufferStream(&buf);
       try fbs.writer().print("fps {d}", .{fps_int});
-      renderText(buf[0..:0], SCREEN_WIDTH - 100, 0);
+      renderText(buf[0..:0], RENDER_SCALE * screen_width - 100, 0);
     }
 
     c.SDL_RenderPresent(renderer);
