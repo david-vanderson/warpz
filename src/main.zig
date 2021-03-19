@@ -146,7 +146,9 @@ var font: ?*c.TTF_Font = undefined;
 fn renderText(text: [:0]u8, left: i32, top: i32) void {
   const color = c.SDL_Color{.r = 255, .g = 255, .b = 255, .a = 255};
   const textSurface = c.TTF_RenderUTF8_Blended(font, text, color);
+  defer c.SDL_FreeSurface(textSurface);
   const textTexture = c.SDL_CreateTextureFromSurface(renderer, textSurface);
+  defer c.SDL_DestroyTexture(textTexture);
   const tsrcr = c.SDL_Rect{.x = 0, .y = 0, .w = textSurface.*.w, .h = textSurface.*.h};
   const tdesr = c.SDL_Rect{.x = left, .y = top, .w = 2 * tsrcr.w, .h = 2 * tsrcr.h};
   //_ = c.SDL_SetTextureAlphaMod(textTexture, @floatToInt(u8, alpha * 255));
@@ -282,8 +284,6 @@ pub fn main() !void {
     }
   }
 
-  std.debug.print("meid = {d} on_ship = {d}\n", .{client.meid, meObj.entity.player.on_ship});
-
   var frame_times = [_]i64{0} ** 10;
 
   var start_loop_millis: i64 = 0;
@@ -293,6 +293,13 @@ pub fn main() !void {
     if (start_loop_millis == 0) {
       start_loop_millis = std.time.milliTimestamp();
     }
+
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = &arena.allocator;
+
+    const blah = try allocator.create(i32);
+    std.debug.print("blah {}\n", .{blah});
 
     scenario.tick();
 
