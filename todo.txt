@@ -1,4 +1,10 @@
 
+make a button UI using sdl render lines and rectangle fills
+
+load ship fighter image
+
+be able to fly ship around
+
 do special sdl stuff to enable retina resolution?
 - look at remarks in docs for SDL_CreateWindow
 

@@ -126,7 +126,6 @@ fn space2Screen(center: Point, zoom: f64, p: Point) Point {
 }
 
 const Client = struct {
-  const Self = @This();
   // 0 before we are assigned an id by the server
   meid: u64,
   center: Point,
@@ -138,6 +137,7 @@ var client: Client = .{
   .center = .{.x = 0, .y = 0},
   .zoom = 1.0,
 };
+
 
 var renderer: *c.SDL_Renderer = undefined;
 var window: *c.SDL_Window = undefined;
@@ -298,17 +298,17 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = &arena.allocator;
 
-    const blah = try allocator.create(i32);
-    std.debug.print("blah {}\n", .{blah});
+    //const blah = try allocator.create(i32);
+    //std.debug.print("blah {}\n", .{blah});
 
     scenario.tick();
 
     meObj = try scenario.findId(client.meid);
     const meShip = try scenario.findId(meObj.entity.player.on_ship);
-    
-    _ = c.SDL_SetRenderDrawColor(renderer, 96, 128, 255, 255);
-    _ = c.SDL_RenderClear(renderer);
 
+    var buttonsDown = std.mem.zeroes([100]i32);
+    var buttonsDownSlice: []i32 = buttonsDown[0..0];
+    
     var event: c.SDL_Event = undefined;
     while (c.SDL_PollEvent(&event) != 0) {
       switch (event.type) {
@@ -324,6 +324,8 @@ pub fn main() !void {
           }
         },
         c.SDL_KEYDOWN => {
+          buttonsDownSlice.len += 1;
+          buttonsDownSlice[buttonsDownSlice.len-1] = event.key.keysym.sym;
           switch (event.key.keysym.sym) {
             c.SDLK_LEFT => {
               meShip.posvel.r += 0.1;
@@ -357,10 +359,15 @@ pub fn main() !void {
         },
         else => {
           //std.debug.print("other event\n", .{});
-          break;
         }
       }
     }
+
+    std.debug.print("buttonsDownSlice {}\n", .{buttonsDownSlice});
+
+    _ = c.SDL_SetRenderDrawColor(renderer, 96, 128, 255, 255);
+    _ = c.SDL_RenderClear(renderer);
+
 
     for (scenario.objects.items) |*o| {
       switch (o.entity) {
