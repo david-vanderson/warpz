@@ -163,15 +163,43 @@ fn drawShip(ship: *Object, texture: *c.SDL_Texture, alpha: f32, red: u8, center:
   const srcr = c.SDL_Rect{.x = 0, .y = 0, .w = 166, .h = 166};
   const screenPt = space2Screen(center, zoom, ship.posvel.p);
   const desr = c.SDL_Rect{
-    .x = @floatToInt(c_int, screenPt.x) + @divFloor(RENDER_SCALE * screen_width, 2),
-    .y = @floatToInt(c_int, screenPt.y) + @divFloor(RENDER_SCALE * screen_height, 2),
+    .x = (RENDER_SCALE * @divFloor(screen_width, 2)) + @floatToInt(c_int, RENDER_SCALE * screenPt.x),
+    .y = (RENDER_SCALE * @divFloor(screen_height, 2)) + @floatToInt(c_int, RENDER_SCALE * screenPt.y),
     .w = RENDER_SCALE * srcr.w,
-    .h = RENDER_SCALE * srcr.h
+    .h = RENDER_SCALE * srcr.h,
   };
   _ = c.SDL_SetTextureAlphaMod(texture, @floatToInt(u8, alpha * 255));
   _ = c.SDL_SetTextureColorMod(texture, red, 0, 0);
   _ = c.SDL_RenderCopyEx(renderer, texture, &srcr, &desr, ship.posvel.r * 180.0 / PI, 0, FLIP_NONE);
 }
+
+fn drawRectangle(color_texture: *c.SDL_Texture, x: i32, y: i32, w: i32, h: i32) void {
+  const srcr = c.SDL_Rect{.x = 0, .y = 0, .w = 1, .h = 1};
+  const desr = c.SDL_Rect{
+    .x = RENDER_SCALE * x,
+    .y = RENDER_SCALE * y,
+    .w = RENDER_SCALE * w,
+    .h = RENDER_SCALE * h,
+  };
+  _ = c.SDL_RenderCopyEx(renderer, color_texture, &srcr, &desr, 0.0, 0, FLIP_NONE);
+}
+
+const KeyEvent = struct {
+  const KeyEventType = enum {
+    down,
+    up,
+  };
+  keysym: i32,
+  state: KeyEventType,
+};
+
+const MouseEvent = struct {
+};
+
+const Event = union(enum) {
+  key_event: KeyEvent,
+  mouse_event: MouseEvent,
+};
 
 pub fn main() !void {
   if (c.SDL_Init(c.SDL_INIT_VIDEO) < 0) {
@@ -201,6 +229,22 @@ pub fn main() !void {
   };
 
   _ = c.SDL_RenderSetLogicalSize(renderer, RENDER_SCALE * screen_width, RENDER_SCALE * screen_height);
+
+
+  // make a surface with all the colors we need for fills
+  var color_surface: *c.SDL_Surface = undefined;
+  color_surface = c.SDL_CreateRGBSurface(0, 1, 1, 32, 0, 0, 0, 0);
+  defer c.SDL_FreeSurface(color_surface);
+  var ok = c.SDL_FillRect(color_surface, 0, c.SDL_MapRGB(color_surface.format, 255, 0, 0));
+  if (ok != 0) {
+    std.debug.print("SDL_FillRect failed: {s}\n", .{c.SDL_GetError()});
+    return;
+  }
+  const color_texture = c.SDL_CreateTextureFromSurface(renderer, color_surface) orelse {
+    std.debug.print("Failed to create color_texture: {s}\n", .{c.SDL_GetError()});
+    return;
+  };
+  defer c.SDL_DestroyTexture(color_texture);
 
 
   const texture: *c.SDL_Texture = c.IMG_LoadTexture(renderer, "images/asteroid.png")
@@ -285,7 +329,6 @@ pub fn main() !void {
   }
 
   var frame_times = [_]i64{0} ** 10;
-
   var start_loop_millis: i64 = 0;
 
   gameloop: while (true) {
@@ -303,14 +346,13 @@ pub fn main() !void {
 
     scenario.tick();
 
-    meObj = try scenario.findId(client.meid);
-    const meShip = try scenario.findId(meObj.entity.player.on_ship);
-
-    var buttonsDown = std.mem.zeroes([100]i32);
-    var buttonsDownSlice: []i32 = buttonsDown[0..0];
+    var eventsArray = try allocator.alloc(Event, 100);
+    var events: []Event = eventsArray[0..0];
     
     var event: c.SDL_Event = undefined;
+    var numEvents: u32 = 0;
     while (c.SDL_PollEvent(&event) != 0) {
+      numEvents += 1;
       switch (event.type) {
         c.SDL_WINDOWEVENT => {
           switch (event.window.event) {
@@ -323,32 +365,37 @@ pub fn main() !void {
             else => {},
           }
         },
-        c.SDL_KEYDOWN => {
-          buttonsDownSlice.len += 1;
-          buttonsDownSlice[buttonsDownSlice.len-1] = event.key.keysym.sym;
+        c.SDL_KEYDOWN, c.SDL_KEYUP => |updown| {
+          events.len += 1;
+          events[events.len-1] = Event{
+            .key_event = KeyEvent{
+              .state = if (updown == c.SDL_KEYDOWN) .down else .up,
+              .keysym = event.key.keysym.sym
+            }
+          };
           switch (event.key.keysym.sym) {
-            c.SDLK_LEFT => {
-              meShip.posvel.r += 0.1;
-            },
-            c.SDLK_RIGHT => {
-              meShip.posvel.r -= 0.1;
-            },
-            c.SDLK_UP => {
-              alpha += 0.1;
-              if (alpha > 1.0) alpha = 1.0;
-            },
-            c.SDLK_DOWN => {
-              alpha -= 0.1;
-              if (alpha < 0.0) alpha = 0.0;
-            },
-            c.SDLK_r => {
-              red = if (red > (255 - red_incr)) 255 else red + red_incr;
-              //std.debug.print("red {d}", .{red});
-            },
-            c.SDLK_t => {
-              red = if (red < red_incr) 0 else red - red_incr;
-              //std.debug.print("red {d}", .{red});
-            },
+          //  c.SDLK_LEFT => {
+          //    meShip.posvel.r += 0.1;
+          //  },
+          //  c.SDLK_RIGHT => {
+          //    meShip.posvel.r -= 0.1;
+          //  },
+          //  c.SDLK_UP => {
+          //    alpha += 0.1;
+          //    if (alpha > 1.0) alpha = 1.0;
+          //  },
+          //  c.SDLK_DOWN => {
+          //    alpha -= 0.1;
+          //    if (alpha < 0.0) alpha = 0.0;
+          //  },
+          //  c.SDLK_r => {
+          //    red = if (red > (255 - red_incr)) 255 else red + red_incr;
+          //    //std.debug.print("red {d}", .{red});
+          //  },
+          //  c.SDLK_t => {
+          //    red = if (red < red_incr) 0 else red - red_incr;
+          //    //std.debug.print("red {d}", .{red});
+          //  },
             c.SDLK_ESCAPE => break :gameloop,
             else => {},
           }
@@ -363,11 +410,18 @@ pub fn main() !void {
       }
     }
 
-    std.debug.print("buttonsDownSlice {}\n", .{buttonsDownSlice});
+    if (numEvents > 0) {
+      std.debug.print("numEvents {d}\n", .{numEvents});
+      for (events) |*e| {
+        std.debug.print("  {}\n", .{e});
+      }
+    }
 
     _ = c.SDL_SetRenderDrawColor(renderer, 96, 128, 255, 255);
     _ = c.SDL_RenderClear(renderer);
 
+    meObj = try scenario.findId(client.meid);
+    const meShip = try scenario.findId(meObj.entity.player.on_ship);
 
     for (scenario.objects.items) |*o| {
       switch (o.entity) {
@@ -377,6 +431,10 @@ pub fn main() !void {
         },
       }
     }
+
+    // FIXME: draw button
+    drawRectangle(color_texture, 100, 100, 2, 100);
+    // FIXME: run through events responding to matching ones
 
     if (frame_times[0] > 0) {
       const diff = frame_times[frame_times.len - 1] - frame_times[0];
