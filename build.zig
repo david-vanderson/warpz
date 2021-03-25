@@ -1,3 +1,4 @@
+const std = @import("std");
 const Builder = @import("std").build.Builder;
 
 pub fn build(b: *Builder) void {
@@ -18,6 +19,8 @@ pub fn build(b: *Builder) void {
     exe.linkSystemLibrary("SDL2");
     exe.linkSystemLibrary("SDL2_image");
     exe.linkSystemLibrary("SDL2_ttf");
+
+    b.installFile("Info.plist", "Info.plist");
 
     exe.setTarget(target);
     exe.setBuildMode(mode);

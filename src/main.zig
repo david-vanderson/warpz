@@ -150,7 +150,12 @@ fn renderText(text: [:0]u8, left: i32, top: i32) void {
   const textTexture = c.SDL_CreateTextureFromSurface(renderer, textSurface);
   defer c.SDL_DestroyTexture(textTexture);
   const tsrcr = c.SDL_Rect{.x = 0, .y = 0, .w = textSurface.*.w, .h = textSurface.*.h};
-  const tdesr = c.SDL_Rect{.x = left, .y = top, .w = 2 * tsrcr.w, .h = 2 * tsrcr.h};
+  const tdesr = c.SDL_Rect{
+    .x = RENDER_SCALE * left,
+    .y = RENDER_SCALE * top,
+    .w = RENDER_SCALE * tsrcr.w,
+    .h = RENDER_SCALE * tsrcr.h,
+  };
   //_ = c.SDL_SetTextureAlphaMod(textTexture, @floatToInt(u8, alpha * 255));
   //_ = c.SDL_SetTextureColorMod(textTexture, red, 0, 0);
   const flip = @intToEnum(c.SDL_RendererFlip, c.SDL_FLIP_NONE);
@@ -214,7 +219,7 @@ pub fn main() !void {
 
   font = c.TTF_OpenFont("ttf-bitstream-vera-1.10/VeraMono.ttf", 12);
 
-  window = c.SDL_CreateWindow("Warpz", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, screen_width, screen_height, c.SDL_WINDOW_RESIZABLE)
+  window = c.SDL_CreateWindow("Warpz", c.SDL_WINDOWPOS_UNDEFINED, c.SDL_WINDOWPOS_UNDEFINED, screen_width, screen_height, c.SDL_WINDOW_ALLOW_HIGHDPI | c.SDL_WINDOW_RESIZABLE)
   orelse {
     std.debug.print("Failed to open {d} x {d} window: {s}\n", .{screen_width, screen_height, c.SDL_GetError()});
     return;
@@ -445,7 +450,7 @@ pub fn main() !void {
       var buf = std.mem.zeroes([100:0]u8);
       var fbs = std.io.fixedBufferStream(&buf);
       try fbs.writer().print("fps {d}", .{fps_int});
-      renderText(buf[0..:0], RENDER_SCALE * screen_width - 100, 0);
+      renderText(buf[0..:0], screen_width - 100, 0);
     }
 
     c.SDL_RenderPresent(renderer);
