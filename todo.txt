@@ -5,9 +5,6 @@ load ship fighter image
 
 be able to fly ship around
 
-do special sdl stuff to enable retina resolution?
-- look at remarks in docs for SDL_CreateWindow
-
 replace sdl_ttf usage with a premade font texture atlas
 replace sdl_image usage with premade textures
 
